@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Font Diff</title>
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="stylesheet" href="/src/style.css" />
+	</head>
+	<body>
+		<header id="app-header">
+			<h1>Font Diff</h1>
+			<nav id="tab-bar">
+				<button class="tab-button active" data-tab="load">Load</button>
+				<button class="tab-button" data-tab="diff" disabled>Diff</button>
+				<button class="tab-button" data-tab="visual" disabled>Visual</button>
+				<button class="tab-button" data-tab="info">Info</button>
+			</nav>
+			<div class="header-actions">
+				<div class="dropdown" id="download-dropdown">
+					<button class="btn-download" disabled>Download JSON</button>
+					<div class="dropdown-menu">
+						<button class="dropdown-item" data-slot="fontA">Font A</button>
+						<button class="dropdown-item" data-slot="fontB">Font B</button>
+					</div>
+				</div>
+			</div>
+		</header>
+		<main id="app">
+			<section id="tab-load" class="tab-content active"></section>
+			<section id="tab-diff" class="tab-content"></section>
+			<section id="tab-visual" class="tab-content"></section>
+			<section id="tab-info" class="tab-content"></section>
+		</main>
+		<script type="module" src="/src/main.js"></script>
+	</body>
+</html>
