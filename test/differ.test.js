@@ -4,7 +4,7 @@ import { diffFonts } from '../src/utils/differ.js';
 describe('diffFonts', () => {
 	it('should handle two identical simple font objects', () => {
 		const fontA = {
-			font: { familyName: 'Test', unitsPerEm: 1000 },
+			info: { familyName: 'Test', unitsPerEm: 1000 },
 			glyphs: [{ name: '.notdef', unicode: 0, advanceWidth: 500 }],
 			kerning: null,
 			tables: {
@@ -24,7 +24,7 @@ describe('diffFonts', () => {
 
 	it('should detect modifications between two font objects', () => {
 		const fontA = {
-			font: { familyName: 'FontA', unitsPerEm: 1000 },
+			info: { familyName: 'FontA', unitsPerEm: 1000 },
 			glyphs: [],
 			kerning: null,
 			tables: {
@@ -32,7 +32,7 @@ describe('diffFonts', () => {
 			},
 		};
 		const fontB = {
-			font: { familyName: 'FontB', unitsPerEm: 2048 },
+			info: { familyName: 'FontB', unitsPerEm: 2048 },
 			glyphs: [],
 			kerning: null,
 			tables: {
@@ -49,13 +49,13 @@ describe('diffFonts', () => {
 
 	it('should handle tables only in one font', () => {
 		const fontA = {
-			font: {},
+			info: {},
 			glyphs: [],
 			kerning: null,
 			tables: { head: { unitsPerEm: 1000 }, kern: { pairs: [] } },
 		};
 		const fontB = {
-			font: {},
+			info: {},
 			glyphs: [],
 			kerning: null,
 			tables: { head: { unitsPerEm: 1000 } },
@@ -72,13 +72,13 @@ describe('diffFonts', () => {
 		// safeStringify returns undefined for both, and buildDiffEntry
 		// would fall through to diffLines(undefined, undefined)
 		const fontA = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: [],
 			kerning: null,
 			tables: {},
 		};
 		const fontB = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: [],
 			kerning: null,
 			tables: {},
@@ -90,13 +90,13 @@ describe('diffFonts', () => {
 
 	it('should handle both kerning fields being undefined without crashing', () => {
 		const fontA = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: [],
 			kerning: undefined,
 			tables: {},
 		};
 		const fontB = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: [],
 			kerning: undefined,
 			tables: {},
@@ -123,13 +123,13 @@ describe('diffFonts', () => {
 			}));
 
 		const fontA = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: makeGlyphs(500),
 			kerning: [],
 			tables: {},
 		};
 		const fontB = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: makeGlyphs(500),
 			kerning: [],
 			tables: {},
@@ -164,13 +164,13 @@ describe('diffFonts', () => {
 			}));
 
 		const fontA = {
-			font: { familyName: 'Big Font' },
+			info: { familyName: 'Big Font' },
 			glyphs: makeGlyphs(2000),
 			kerning: [],
 			tables: {},
 		};
 		const fontB = {
-			font: { familyName: 'Big Font' },
+			info: { familyName: 'Big Font' },
 			glyphs: makeGlyphs(2000),
 			kerning: [],
 			tables: {},
@@ -189,7 +189,7 @@ describe('diffFonts', () => {
 
 	it('should handle tables with large TypedArrays without hanging', () => {
 		const fontA = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: [],
 			kerning: null,
 			tables: {
@@ -198,7 +198,7 @@ describe('diffFonts', () => {
 			},
 		};
 		const fontB = {
-			font: { familyName: 'Test' },
+			info: { familyName: 'Test' },
 			glyphs: [],
 			kerning: null,
 			tables: {
@@ -214,5 +214,108 @@ describe('diffFonts', () => {
 		console.log(`Large TypedArray diff took ${elapsed.toFixed(0)}ms`);
 		expect(results).toBeDefined();
 		expect(elapsed).toBeLessThan(2000);
+	});
+
+	it('should diff new v2 convenience fields (substitutions, axes, etc.)', () => {
+		const fontA = {
+			info: { familyName: 'VarFont' },
+			glyphs: [],
+			kerning: null,
+			substitutions: [
+				{
+					type: 'ligature',
+					feature: 'liga',
+					components: ['f', 'i'],
+					ligature: 'fi',
+				},
+			],
+			axes: [{ tag: 'wght', min: 100, default: 400, max: 900, name: 'Weight' }],
+			instances: [{ name: 'Bold', coordinates: { wght: 700 } }],
+			axisMapping: {
+				wght: [
+					[100, 100],
+					[400, 400],
+					[900, 900],
+				],
+			},
+			axisStyles: null,
+			metricVariations: null,
+			features: { GPOS: {} },
+			palettes: null,
+			colorGlyphs: null,
+			tables: {},
+		};
+		const fontB = {
+			info: { familyName: 'VarFont' },
+			glyphs: [],
+			kerning: null,
+			substitutions: [],
+			axes: [{ tag: 'wght', min: 200, default: 400, max: 900, name: 'Weight' }],
+			instances: [{ name: 'Bold', coordinates: { wght: 700 } }],
+			axisMapping: {
+				wght: [
+					[200, 200],
+					[400, 400],
+					[900, 900],
+				],
+			},
+			axisStyles: null,
+			metricVariations: null,
+			features: { GPOS: {} },
+			palettes: null,
+			colorGlyphs: null,
+			tables: {},
+		};
+
+		const results = diffFonts(fontA, fontB);
+
+		const subsDiff = results.find((r) => r.tableName === 'substitutions');
+		expect(subsDiff).toBeDefined();
+		expect(subsDiff.status).toBe('modified');
+
+		const axesDiff = results.find((r) => r.tableName === 'axes');
+		expect(axesDiff).toBeDefined();
+		expect(axesDiff.status).toBe('modified');
+
+		const instancesDiff = results.find((r) => r.tableName === 'instances');
+		expect(instancesDiff).toBeDefined();
+		expect(instancesDiff.status).toBe('identical');
+
+		const mappingDiff = results.find((r) => r.tableName === 'axisMapping');
+		expect(mappingDiff).toBeDefined();
+		expect(mappingDiff.status).toBe('modified');
+
+		const featuresDiff = results.find((r) => r.tableName === 'features');
+		expect(featuresDiff).toBeDefined();
+		expect(featuresDiff.status).toBe('identical');
+	});
+
+	it('should handle missing convenience fields gracefully', () => {
+		const fontA = {
+			info: { familyName: 'Simple' },
+			glyphs: [],
+			kerning: null,
+			tables: {},
+		};
+		const fontB = {
+			info: { familyName: 'Simple' },
+			glyphs: [],
+			kerning: null,
+			substitutions: [
+				{
+					type: 'ligature',
+					feature: 'liga',
+					components: ['f', 'i'],
+					ligature: 'fi',
+				},
+			],
+			tables: {},
+		};
+
+		expect(() => diffFonts(fontA, fontB)).not.toThrow();
+		const results = diffFonts(fontA, fontB);
+		const subsDiff = results.find((r) => r.tableName === 'substitutions');
+		expect(subsDiff).toBeDefined();
+		expect(subsDiff.status).toBe('only-b');
 	});
 });

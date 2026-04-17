@@ -7,7 +7,9 @@ export function initInfoTab(container) {
         <h2 class="info-title">Font Diff</h2>
         <p class="info-tagline">Drop two fonts to see their differences, both visually and data-ly</p>
         <p class="info-description">
-          Font Diff is a browser-based tool for comparing OpenType and TrueType font files.
+          Font Diff is a browser-based tool for comparing font files.
+          It supports TTF, OTF, WOFF, WOFF2, TTC/OTC collections, CFF,
+          and legacy Type 1 formats (PFB and PFA).
           Load two fonts to get a side-by-side data diff of every table, plus a visual
           pixel overlay to see exactly where the outlines diverge.
         </p>
@@ -19,7 +21,15 @@ export function initInfoTab(container) {
         <a href="https://github.com/mattlag/font-diff" target="_blank" rel="noopener">GitHub page</a>,
         or reach out to
         <a href="mailto:mail@glyphrstudio.com">mail@glyphrstudio.com</a>
-        — we always love hearing feedback and answering questions!
+        - we always love hearing feedback and answering questions!
+      </div>
+      <div class="info-footer">
+        Built on <strong>Font Flux JS</strong> -
+        convert fonts to JSON, make edits, then convert them back!
+        Check out the
+        <a href="https://github.com/mattlag/Font-Flux-JS" target="_blank" rel="noopener">GitHub page</a>
+        or the
+        <a href="https://www.glyphrstudio.com/fontfluxjs" target="_blank" rel="noopener">website</a>.
       </div>
     </div>
   `;

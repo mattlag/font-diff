@@ -28,10 +28,22 @@ async function main() {
 	});
 
 	// Enable/disable tabs when fonts are loaded
+	let wasReady = false;
 	onStateChange(() => {
 		const ready = bothFontsLoaded();
-		document.querySelector('[data-tab="diff"]').disabled = !ready;
-		document.querySelector('[data-tab="visual"]').disabled = !ready;
+		const diffBtn = document.querySelector('[data-tab="diff"]');
+		const visualBtn = document.querySelector('[data-tab="visual"]');
+		diffBtn.disabled = !ready;
+		visualBtn.disabled = !ready;
+
+		if (ready && !wasReady) {
+			diffBtn.classList.add('tab-sparkle');
+			visualBtn.classList.add('tab-sparkle');
+			const onEnd = (e) => e.target.classList.remove('tab-sparkle');
+			diffBtn.addEventListener('animationend', onEnd, { once: true });
+			visualBtn.addEventListener('animationend', onEnd, { once: true });
+		}
+		wasReady = ready;
 
 		if (ready && currentTab === 'diff') updateDiffTab();
 		if (ready && currentTab === 'visual') updateVisualTab();
@@ -42,9 +54,9 @@ async function main() {
 		dlBtn.disabled = !fontA && !fontB;
 		const itemA = document.querySelector('[data-slot="fontA"]');
 		const itemB = document.querySelector('[data-slot="fontB"]');
-		itemA.textContent = fontA?.file?.name || 'Font A';
+		itemA.textContent = fontA?.file?.name?.replace(/\.[^.]+$/, '') || 'Font A';
 		itemA.disabled = !fontA;
-		itemB.textContent = fontB?.file?.name || 'Font B';
+		itemB.textContent = fontB?.file?.name?.replace(/\.[^.]+$/, '') || 'Font B';
 		itemB.disabled = !fontB;
 	});
 

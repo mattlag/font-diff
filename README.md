@@ -1,6 +1,11 @@
 # Font Diff
 
-Drop two fonts to see their differences, both visually and data-ly
+Drop two fonts to see their differences, both visually and data-ly.
+
+Font Diff is part of the **Glyphr Studio Family**. You can raise issues on the GitHub issues page, or reach out to mail@glyphrstudio.com — we always love hearing feedback and answering questions!
+
+You can try it out online at
+[glyphrstudio.com/fontdiff](https://www.glyphrstudio.com/fontdiff).
 
 ## Features
 

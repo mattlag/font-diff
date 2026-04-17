@@ -1,4 +1,4 @@
-import { importFont } from 'font-flux-js';
+import { FontFlux } from 'font-flux-js';
 
 let fontFaceCounter = 0;
 
@@ -7,23 +7,51 @@ let fontFaceCounter = 0;
  * For collections (TTC/OTC), pass collectionIndex to select which font (default 0).
  *
  * Returns { data, fontFamily, file, collectionIndex }
- *   - data: the parsed font object from importFont
+ *   - data: the FontFlux instance
  *   - fontFamily: the CSS font-family name registered via FontFace API
  *   - file: the original File object
  *   - collectionIndex: which font in a collection (0 for single fonts)
  */
 export async function loadFont(file, collectionIndex = 0) {
 	const buffer = await file.arrayBuffer();
-	const data = importFont(buffer, { collectionIndex });
+	const tag = String.fromCharCode(...new Uint8Array(buffer, 0, 4));
+	const isCollection = tag === 'ttcf' || tag === 'otcf';
+	const data = isCollection
+		? FontFlux.openAll(buffer)[collectionIndex]
+		: FontFlux.open(buffer);
 
-	// Register as @font-face for canvas rendering
+	// Register as @font-face for canvas rendering.
+	// Some formats (CFF, PFB, PFA) aren't supported by the browser's FontFace API,
+	// so we export to a browser-friendly binary first and fall back gracefully.
 	const fontFamily = `font-diff-${fontFaceCounter++}`;
-	const url = URL.createObjectURL(file);
-	const face = new FontFace(fontFamily, `url(${url})`);
-	await face.load();
-	document.fonts.add(face);
+	let fontFaceRegistered = false;
+	try {
+		let faceSource;
+		const ext = file.name?.split('.').pop()?.toLowerCase();
+		if (ext === 'cff' || ext === 'pfb' || ext === 'pfa') {
+			const exportedBuffer = data.export({ format: 'sfnt' });
+			const blob = new Blob([exportedBuffer], { type: 'font/otf' });
+			faceSource = `url(${URL.createObjectURL(blob)})`;
+		} else {
+			faceSource = `url(${URL.createObjectURL(file)})`;
+		}
+		const face = new FontFace(fontFamily, faceSource);
+		await face.load();
+		document.fonts.add(face);
+		fontFaceRegistered = true;
+	} catch (err) {
+		console.warn(
+			`FontFace registration skipped for "${file.name}" - visual preview unavailable:`,
+			err.message || err,
+		);
+	}
 
-	return { data, fontFamily, file, collectionIndex };
+	return {
+		data,
+		fontFamily: fontFaceRegistered ? fontFamily : null,
+		file,
+		collectionIndex,
+	};
 }
 
 /**

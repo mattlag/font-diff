@@ -1,7 +1,7 @@
 {
 	"name": "font-diff",
 	"private": true,
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -11,7 +11,7 @@
 	},
 	"dependencies": {
 		"diff": "^7.0.0",
-		"font-flux-js": "^1.3.0"
+		"font-flux-js": "^2.3.0"
 	},
 	"devDependencies": {
 		"jsdom": "^29.0.1",

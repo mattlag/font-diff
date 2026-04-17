@@ -3,8 +3,32 @@ import { diffLines } from 'diff';
 const MAX_STRING_LENGTH = 500_000; // ~500KB cap per stringified value
 
 /**
+ * Convenience properties from FontFlux that are diffed separately from raw tables.
+ * 'font' maps to .info on the instance; all others use the same key on the instance.
+ */
+const CONVENIENCE_FIELDS = [
+	'font',
+	'glyphs',
+	'kerning',
+	'substitutions',
+	'axes',
+	'instances',
+	'axisMapping',
+	'axisStyles',
+	'metricVariations',
+	'features',
+	'palettes',
+	'colorGlyphs',
+];
+
+/** Map a convenience field name to the actual property key on a FontFlux instance. */
+function fieldKey(name) {
+	return name === 'font' ? 'info' : name;
+}
+
+/**
  * Return table names split into two groups: calculated fields and raw tables.
- * Instant — no computation.
+ * Convenience fields where both fonts have no data are omitted.
  */
 export function getTableNames(fontA, fontB) {
 	const tablesA = fontA.tables || {};
@@ -12,10 +36,37 @@ export function getTableNames(fontA, fontB) {
 	const allKeys = [
 		...new Set([...Object.keys(tablesA), ...Object.keys(tablesB)]),
 	].sort();
+
+	const calculated = CONVENIENCE_FIELDS.filter((name) => {
+		const key = fieldKey(name);
+		return hasData(fontA[key]) || hasData(fontB[key]);
+	});
+
 	return {
-		calculated: ['font', 'glyphs', 'kerning'],
+		calculated,
 		tables: allKeys,
 	};
+}
+
+/**
+ * Return a display count for a convenience field value.
+ * Arrays → length, objects → key count, null/undefined → 0.
+ * Returns null for 'font' (info object) since a count isn't meaningful there.
+ */
+export function entryCount(fieldName, value) {
+	if (fieldName === 'font') return null;
+	if (value == null) return 0;
+	if (Array.isArray(value)) return value.length;
+	if (typeof value === 'object') return Object.keys(value).length;
+	return null;
+}
+
+/** Check whether a value contains meaningful data. */
+function hasData(value) {
+	if (value == null) return false;
+	if (Array.isArray(value)) return value.length > 0;
+	if (typeof value === 'object') return Object.keys(value).length > 0;
+	return true;
 }
 
 /**
@@ -26,18 +77,12 @@ export function computeTableSummary(fontA, fontB, tableName) {
 	if (tableName === 'glyphs') {
 		return glyphsSummary(fontA.glyphs, fontB.glyphs);
 	}
-	if (tableName === 'font') {
+	if (CONVENIENCE_FIELDS.includes(tableName)) {
+		const key = fieldKey(tableName);
 		return buildSummaryEntry(
-			'font',
-			safeStringify(fontA.font),
-			safeStringify(fontB.font),
-		);
-	}
-	if (tableName === 'kerning') {
-		return buildSummaryEntry(
-			'kerning',
-			safeStringify(fontA.kerning),
-			safeStringify(fontB.kerning),
+			tableName,
+			safeStringify(fontA[key]),
+			safeStringify(fontB[key]),
 		);
 	}
 	const tablesA = fontA.tables || {};
@@ -60,26 +105,21 @@ export function diffFontsSummary(fontA, fontB) {
 
 	const results = [];
 
-	// Simplified top-level fields
-	results.push(
-		buildSummaryEntry(
-			'font',
-			safeStringify(fontA.font),
-			safeStringify(fontB.font),
-		),
-	);
-
-	// Glyphs summary (per-glyph comparison for counts, but no diffParts)
-	results.push(glyphsSummary(fontA.glyphs, fontB.glyphs));
-
-	// Kerning
-	results.push(
-		buildSummaryEntry(
-			'kerning',
-			safeStringify(fontA.kerning),
-			safeStringify(fontB.kerning),
-		),
-	);
+	// Convenience fields
+	for (const name of CONVENIENCE_FIELDS) {
+		if (name === 'glyphs') {
+			results.push(glyphsSummary(fontA.glyphs, fontB.glyphs));
+		} else {
+			const key = fieldKey(name);
+			results.push(
+				buildSummaryEntry(
+					name,
+					safeStringify(fontA[key]),
+					safeStringify(fontB[key]),
+				),
+			);
+		}
+	}
 
 	// Each table
 	for (const tableName of [...allKeys].sort()) {
@@ -104,18 +144,12 @@ export function diffTableDetail(fontA, fontB, tableName) {
 	if (tableName.startsWith('glyphs')) {
 		return diffGlyphsDetail(fontA.glyphs, fontB.glyphs);
 	}
-	if (tableName === 'font') {
+	if (CONVENIENCE_FIELDS.includes(tableName)) {
+		const key = fieldKey(tableName);
 		return buildDiffEntry(
 			tableName,
-			safeStringify(fontA.font),
-			safeStringify(fontB.font),
-		);
-	}
-	if (tableName === 'kerning') {
-		return buildDiffEntry(
-			tableName,
-			safeStringify(fontA.kerning),
-			safeStringify(fontB.kerning),
+			safeStringify(fontA[key]),
+			safeStringify(fontB[key]),
 		);
 	}
 	const tablesA = fontA.tables || {};
@@ -125,6 +159,52 @@ export function diffTableDetail(fontA, fontB, tableName) {
 		safeStringify(tablesA[tableName]),
 		safeStringify(tablesB[tableName]),
 	);
+}
+
+/**
+ * Async version of diffTableDetail that yields to the main thread
+ * between chunks, keeping the UI responsive.
+ * @param {object} fontA
+ * @param {object} fontB
+ * @param {string} tableName
+ * @param {object} [opts]
+ * @param {(pct: number) => void} [opts.onProgress] - called with 0-100
+ * @param {() => boolean} [opts.isCancelled] - return true to abort
+ */
+export async function diffTableDetailAsync(fontA, fontB, tableName, opts = {}) {
+	if (tableName.startsWith('glyphs')) {
+		return diffGlyphsDetailAsync(fontA.glyphs, fontB.glyphs, opts);
+	}
+	// Non-glyph tables are fast enough to run synchronously
+	return diffTableDetail(fontA, fontB, tableName);
+}
+
+async function diffGlyphsDetailAsync(glyphsA, glyphsB, opts = {}) {
+	const { onProgress, isCancelled } = opts;
+	const arrA = glyphsA || [];
+	const arrB = glyphsB || [];
+	const maxLen = Math.max(arrA.length, arrB.length);
+	const allParts = [];
+	const CHUNK = 50;
+
+	for (let i = 0; i < maxLen; i++) {
+		if (isCancelled?.()) return { tableName: 'glyphs', diffParts: [] };
+
+		const strA = i < arrA.length ? safeStringify(arrA[i]) : undefined;
+		const strB = i < arrB.length ? safeStringify(arrB[i]) : undefined;
+		const entry = buildDiffEntry(`glyph[${i}]`, strA, strB);
+		if (entry.status !== 'identical') {
+			allParts.push(...entry.diffParts);
+		}
+
+		if ((i + 1) % CHUNK === 0) {
+			onProgress?.(Math.round(((i + 1) / maxLen) * 100));
+			await new Promise((r) => setTimeout(r, 0));
+		}
+	}
+
+	onProgress?.(100);
+	return { tableName: 'glyphs', diffParts: allParts };
 }
 
 /**
@@ -138,21 +218,21 @@ export function diffFonts(fontA, fontB) {
 
 	const results = [];
 
-	results.push(
-		buildDiffEntry(
-			'font',
-			safeStringify(fontA.font),
-			safeStringify(fontB.font),
-		),
-	);
-	results.push(...diffGlyphsFull(fontA.glyphs, fontB.glyphs));
-	results.push(
-		buildDiffEntry(
-			'kerning',
-			safeStringify(fontA.kerning),
-			safeStringify(fontB.kerning),
-		),
-	);
+	// Convenience fields
+	for (const name of CONVENIENCE_FIELDS) {
+		if (name === 'glyphs') {
+			results.push(...diffGlyphsFull(fontA.glyphs, fontB.glyphs));
+		} else {
+			const key = fieldKey(name);
+			results.push(
+				buildDiffEntry(
+					name,
+					safeStringify(fontA[key]),
+					safeStringify(fontB[key]),
+				),
+			);
+		}
+	}
 
 	for (const tableName of [...allKeys].sort()) {
 		const strA = safeStringify(tablesA[tableName]);

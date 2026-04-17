@@ -5,14 +5,18 @@ import {
 	loadFont,
 } from '../utils/font-loader.js';
 
-const ACCEPTED = '.ttf,.otf,.woff,.woff2,.ttc,.otc';
+const ACCEPTED = '.ttf,.otf,.woff,.woff2,.ttc,.otc,.cff,.pfb,.pfa';
 
 export function initLoadTab(container) {
+	const types = ACCEPTED.split(',')
+		.map((e) => e.replace('.', '').toUpperCase())
+		.join(', ');
 	container.innerHTML = `
     <div class="load-grid">
       ${createDropZone('A')}
       ${createDropZone('B')}
     </div>
+    <p class="load-supported-types">Supported formats: ${types}</p>
   `;
 
 	const handleA = setupDropZone(
@@ -143,9 +147,9 @@ function setupDropZone(zone, slot) {
 
 			// Show metadata
 			const d = fontInfo.data;
-			const familyName = d.font?.familyName || 'Unknown';
-			const styleName = d.font?.styleName || '';
-			const glyphCount = d.glyphs?.length ?? '?';
+			const familyName = d.info?.familyName || 'Unknown';
+			const styleName = d.info?.styleName || '';
+			const glyphCount = d.glyphCount ?? d.glyphs?.length ?? '?';
 			const fileSize = formatFileSize(file.size);
 
 			info.innerHTML = `
@@ -154,6 +158,7 @@ function setupDropZone(zone, slot) {
           <div class="font-meta-details">
             ${glyphCount} glyphs &middot; ${fileSize}
           </div>
+          <div class="font-meta-file">${file.name}</div>
         </div>
       `;
 

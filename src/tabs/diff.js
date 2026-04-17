@@ -1,7 +1,8 @@
 import { getState } from '../state.js';
 import {
 	computeTableSummary,
-	diffTableDetail,
+	diffTableDetailAsync,
+	entryCount,
 	getTableNames,
 } from '../utils/differ.js';
 
@@ -22,18 +23,22 @@ export function updateDiffTab() {
 	const { calculated, tables } = getTableNames(fontA.data, fontB.data);
 	const allNames = [...calculated, ...tables];
 
-	const renderSection = (names, startIdx) =>
+	const renderSection = (names, startIdx, dataA, dataB) =>
 		names
-			.map(
-				(name, i) => `
+			.map((name, i) => {
+				const key = name === 'font' ? 'info' : name;
+				const countA = entryCount(name, dataA[key]);
+				const countB = entryCount(name, dataB[key]);
+				const countLabel = formatCountLabel(countA, countB);
+				return `
       <details class="diff-table-section" data-table="${escapeHtml(name)}" data-idx="${startIdx + i}">
         <summary class="diff-table-header">
-          <span class="table-name">${escapeHtml(name)}</span>
+          <span class="table-name">${escapeHtml(name)}${countLabel}</span>
           <span class="badge badge-computing">&hellip;</span>
         </summary>
         <div class="diff-table-body"></div>
-      </details>`,
-			)
+      </details>`;
+			})
 			.join('');
 
 	// Render skeleton immediately — no computation yet
@@ -42,23 +47,64 @@ export function updateDiffTab() {
       <span class="badge badge-computing">Computing summaries&hellip;</span>
     </div>
     <h3 class="diff-section-heading">Calculated</h3>` +
-		renderSection(calculated, 0) +
+		renderSection(calculated, 0, fontA.data, fontB.data) +
 		`<h3 class="diff-section-heading">Tables</h3>` +
-		renderSection(tables, calculated.length);
+		renderSection(
+			tables,
+			calculated.length,
+			fontA.data.tables || {},
+			fontB.data.tables || {},
+		);
 
 	// Set up lazy-load detail on expand
 	container.querySelectorAll('.diff-table-section').forEach((details) => {
 		let loaded = false;
-		details.addEventListener('toggle', () => {
+		details.addEventListener('toggle', async () => {
 			if (!details.open || loaded) return;
 			loaded = true;
+			const myRun = run;
 			const tableName = details.dataset.table;
 			const body = details.querySelector('.diff-table-body');
 			body.innerHTML = '<div class="diff-loading">Computing diff&hellip;</div>';
-			requestAnimationFrame(() => {
-				const detail = diffTableDetail(fontA.data, fontB.data, tableName);
-				body.innerHTML = renderSideBySide(detail.diffParts);
-			});
+			const loadingEl = body.querySelector('.diff-loading');
+
+			const detail = await diffTableDetailAsync(
+				fontA.data,
+				fontB.data,
+				tableName,
+				{
+					onProgress(pct) {
+						if (myRun !== currentRun) return;
+						loadingEl.textContent = `Computing diff\u2026 ${pct}%`;
+					},
+					isCancelled: () => myRun !== currentRun,
+				},
+			);
+
+			if (myRun !== currentRun) return;
+			const { leftLines, rightLines } = buildLineArrays(detail.diffParts);
+			body.innerHTML = renderRows(leftLines, rightLines, 0, MAX_INITIAL_ROWS);
+
+			const total = Math.max(leftLines.length, rightLines.length);
+			if (total > MAX_INITIAL_ROWS) {
+				let shown = MAX_INITIAL_ROWS;
+				const btn = body.querySelector('.diff-show-more');
+				btn?.addEventListener('click', () => {
+					const table = body.querySelector('.diff-side-by-side tbody');
+					const next = Math.min(shown + MAX_INITIAL_ROWS, total);
+					table.insertAdjacentHTML(
+						'beforeend',
+						buildRows(leftLines, rightLines, shown, next),
+					);
+					shown = next;
+					if (shown >= total) {
+						body.querySelector('.diff-show-more')?.remove();
+					} else {
+						body.querySelector('.diff-show-more').textContent =
+							`Show ${(total - shown).toLocaleString()} more lines`;
+					}
+				});
+			}
 		});
 	});
 
@@ -110,8 +156,9 @@ async function computeSummariesAsync(dataA, dataB, tableNames, run) {
 	}
 }
 
-function renderSideBySide(parts) {
-	// Build left (A) and right (B) line arrays from diff parts
+const MAX_INITIAL_ROWS = 500;
+
+function buildLineArrays(parts) {
 	const leftLines = [];
 	const rightLines = [];
 
@@ -135,9 +182,14 @@ function renderSideBySide(parts) {
 		}
 	}
 
+	return { leftLines, rightLines };
+}
+
+function buildRows(leftLines, rightLines, from, to) {
 	const maxLines = Math.max(leftLines.length, rightLines.length);
+	const end = Math.min(to, maxLines);
 	let rows = '';
-	for (let i = 0; i < maxLines; i++) {
+	for (let i = from; i < end; i++) {
 		const left = leftLines[i] || { text: '', type: 'empty' };
 		const right = rightLines[i] || { text: '', type: 'empty' };
 		rows += `<tr>
@@ -147,8 +199,20 @@ function renderSideBySide(parts) {
       <td class="diff-cell diff-${right.type}">${escapeHtml(right.text)}</td>
     </tr>`;
 	}
+	return rows;
+}
 
-	return `<table class="diff-side-by-side"><tbody>${rows}</tbody></table>`;
+function renderRows(leftLines, rightLines, from, limit) {
+	const total = Math.max(leftLines.length, rightLines.length);
+	const clamp = total > limit;
+	const end = clamp ? limit : total;
+	const rows = buildRows(leftLines, rightLines, from, end);
+	let html = `<table class="diff-side-by-side"><tbody>${rows}</tbody></table>`;
+	if (clamp) {
+		const remaining = total - end;
+		html += `<button class="diff-show-more">Show ${remaining.toLocaleString()} more lines</button>`;
+	}
+	return html;
 }
 
 function formatStatus(status) {
@@ -172,4 +236,10 @@ function escapeHtml(str) {
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;');
+}
+
+function formatCountLabel(countA, countB) {
+	if (countA === null && countB === null) return '';
+	if (countA === countB) return ` (${countA})`;
+	return ` (${countA ?? 0} / ${countB ?? 0})`;
 }
